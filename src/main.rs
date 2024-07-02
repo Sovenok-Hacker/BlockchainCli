@@ -5,7 +5,7 @@ use secp256k1::{rand, Secp256k1};
 
 mod mine;
 
-use mine::mine;
+use mine::{mine, mine_derivative};
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -22,13 +22,16 @@ enum Commands {
     Keygen,
 
     /// Gets user balance
-    Balance {
-        address: String,
-    },
+    Balance { address: String },
 
-    Mine {
-        address: String,
-    },
+    /// Gets user gas
+    Gas { address: String },
+
+    /// Mine some coins on the main chain
+    Mine { address: String },
+
+    /// Mine some gas and coind on the derivative chain
+    MineDerivative { address: String },
 }
 
 fn main() {
@@ -74,10 +77,37 @@ fn main() {
             let mut address_bytes = [0; 33];
 
             hex::decode_to_slice(address.trim_start_matches("0x"), &mut address_bytes)
-                .expect("A public key of lenght 32 bytes expected");
+                .expect("A public key of lenght 33 bytes expected");
 
             if let Some(blockchain) = blockchain.as_mut() {
                 mine(blockchain, address_bytes);
+            }
+        }
+        Commands::MineDerivative { address } => {
+            let mut address_bytes = [0; 33];
+
+            hex::decode_to_slice(address.trim_start_matches("0x"), &mut address_bytes)
+                .expect("A public key of lenght 33 bytes expected");
+
+            if let Some(blockchain) = blockchain.as_mut() {
+                mine_derivative(blockchain, address_bytes);
+            }
+        }
+        Commands::Gas { address } => {
+            let mut address_bytes = [0; 33];
+
+            hex::decode_to_slice(address.trim_start_matches("0x"), &mut address_bytes)
+                .expect("A public key of lenght 33 bytes expected");
+
+            if let Some(blockchain) = blockchain {
+                let balance = blockchain
+                    .get_gas(&address_bytes)
+                    .expect("Getting gas failed");
+
+                println!(
+                    "Available gas of address `{}` is {} gaplo",
+                    address, balance
+                );
             }
         }
     }
