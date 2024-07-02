@@ -60,7 +60,7 @@ fn main() {
             let mut address_bytes = [0; 33];
 
             hex::decode_to_slice(address.trim_start_matches("0x"), &mut address_bytes)
-                .expect("A public key of lenght 32 bytes expected");
+                .expect("A public key of lenght 33 bytes expected");
 
             if let Some(blockchain) = blockchain {
                 let balance = blockchain
