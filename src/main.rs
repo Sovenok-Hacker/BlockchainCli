@@ -1,6 +1,6 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use blockchaintree::{blockchaintree::BlockChainTree, transaction::Transactionable};
+use blockchaintree::{blockchaintree::BlockChainTree, transaction::{Transaction, Transactionable}};
 use clap::{Parser, Subcommand};
 
 use primitive_types::U256;
@@ -167,7 +167,17 @@ fn main() {
                 println!("Block mined");
             }
         }
-        Commands::Transaction { hash } => {}
+        Commands::Transaction { hash } => {
+            let mut hash_bytes = [0; 32];
+
+            hex::decode_to_slice(hash.trim_start_matches("0x"), &mut hash_bytes)
+                .expect("A transaction hash of length 32 bytes expected");
+
+            if let Some(blockchain) = blockchain {
+                let tx: Transaction = blockchain.get_main_chain().get_transaction(&hash_bytes).expect("Error getting transaction").expect("Transaction not found");
+                println!("{}: 0x{} -> 0x{} - {} aplo", hash, hex::encode(tx.get_sender()), hex::encode(tx.get_receiver()), tx.get_amount());
+            }
+        }
         Commands::BlockId { height } => {
             if let Some(blockchain) = blockchain {
                 let main_chain = blockchain.get_main_chain();
