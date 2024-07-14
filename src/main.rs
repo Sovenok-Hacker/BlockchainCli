@@ -1,6 +1,9 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use blockchaintree::{blockchaintree::BlockChainTree, transaction::{Transaction, Transactionable}};
+use blockchaintree::{
+    blockchaintree::BlockChainTree,
+    transaction::{Transaction, Transactionable},
+};
 use clap::{Parser, Subcommand};
 
 use primitive_types::U256;
@@ -61,7 +64,7 @@ fn main() {
             let secp = Secp256k1::new();
             let (secret_key, public_key) = secp.generate_keypair(&mut rand);
 
-            println!("Address: 0x{}", public_key.to_string());
+            println!("Address: 0x{}", public_key);
             println!(
                 "Private key (KEEP IT AS SECRET): 0x{}",
                 secret_key.display_secret()
@@ -144,7 +147,7 @@ fn main() {
             let secret_key_serialized = SecretKey::from_slice(&private_key_bytes).unwrap();
             let sender_address = secret_key_serialized.public_key(&context).serialize();
 
-            if let Some(mut blockchain) = blockchain.as_mut() {
+            if let Some(blockchain) = blockchain.as_mut() {
                 let timestamp = SystemTime::now()
                     .duration_since(UNIX_EPOCH)
                     .unwrap()
@@ -163,7 +166,7 @@ fn main() {
                     .expect("Error sending transaction");
 
                 println!("Transaction 0x{} was sent", hex::encode(transaction.hash()));
-                mine_transactions(&mut blockchain, address_bytes, &[transaction.hash()]);
+                mine_transactions(blockchain, address_bytes, &[transaction.hash()]);
                 println!("Block mined");
             }
         }
@@ -174,8 +177,18 @@ fn main() {
                 .expect("A transaction hash of length 32 bytes expected");
 
             if let Some(blockchain) = blockchain {
-                let tx: Transaction = blockchain.get_main_chain().get_transaction(&hash_bytes).expect("Error getting transaction").expect("Transaction not found");
-                println!("{}: 0x{} -> 0x{} - {} aplo", hash, hex::encode(tx.get_sender()), hex::encode(tx.get_receiver()), tx.get_amount());
+                let tx: Transaction = blockchain
+                    .get_main_chain()
+                    .get_transaction(&hash_bytes)
+                    .expect("Error getting transaction")
+                    .expect("Transaction not found");
+                println!(
+                    "{}: 0x{} -> 0x{} - {} aplo",
+                    hash,
+                    hex::encode(tx.get_sender()),
+                    hex::encode(tx.get_receiver()),
+                    tx.get_amount()
+                );
             }
         }
         Commands::BlockId { height } => {
@@ -193,7 +206,7 @@ fn main() {
                     "Transactions: {:#?}",
                     block.transactions().map(|trxs| trxs
                         .iter()
-                        .map(|hash| hex::encode(hash))
+                        .map(hex::encode)
                         .collect::<Vec<_>>())
                 );
             }
