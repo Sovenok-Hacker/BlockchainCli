@@ -1,11 +1,14 @@
-use blockchaintree::blockchaintree::BlockChainTree;
+use std::time::{SystemTime, UNIX_EPOCH};
+
+use blockchaintree::{blockchaintree::BlockChainTree, transaction::Transactionable};
 use clap::{Parser, Subcommand};
 
-use secp256k1::{rand, Secp256k1};
+use primitive_types::U256;
+use secp256k1::{rand, Secp256k1, SecretKey};
 
 mod mine;
 
-use mine::{mine, mine_derivative};
+use mine::{mine, mine_derivative, mine_transactions};
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -32,6 +35,19 @@ enum Commands {
 
     /// Mine some gas and coind on the derivative chain
     MineDerivative { address: String },
+
+    /// Mine some gas and coind on the derivative chain
+    SendTransaction {
+        private_key: String,
+        to: String,
+        amount: u64,
+    },
+
+    /// Get transaction by the hash
+    Transaction { hash: String },
+
+    /// Get block by height
+    BlockId { height: usize },
 }
 
 fn main() {
@@ -80,7 +96,7 @@ fn main() {
                 .expect("A public key of lenght 33 bytes expected");
 
             if let Some(blockchain) = blockchain.as_mut() {
-                mine(blockchain, address_bytes);
+                mine(blockchain, address_bytes, &[[25; 32]]);
             }
         }
         Commands::MineDerivative { address } => {
@@ -107,6 +123,68 @@ fn main() {
                 println!(
                     "Available gas of address `{}` is {} gaplo",
                     address, balance
+                );
+            }
+        }
+        Commands::SendTransaction {
+            private_key,
+            to,
+            amount,
+        } => {
+            let mut address_bytes = [0; 33];
+
+            hex::decode_to_slice(to.trim_start_matches("0x"), &mut address_bytes)
+                .expect("A public key of lenght 33 bytes expected");
+
+            let mut private_key_bytes = [0; 32];
+
+            hex::decode_to_slice(private_key.trim_start_matches("0x"), &mut private_key_bytes)
+                .expect("A private key of lenght 32 bytes expected");
+            let context = secp256k1::Secp256k1::new();
+            let secret_key_serialized = SecretKey::from_slice(&private_key_bytes).unwrap();
+            let sender_address = secret_key_serialized.public_key(&context).serialize();
+
+            if let Some(mut blockchain) = blockchain.as_mut() {
+                let timestamp = SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs();
+                let transaction = blockchaintree::transaction::Transaction::new(
+                    sender_address,
+                    address_bytes,
+                    timestamp,
+                    U256::from(*amount as usize),
+                    private_key_bytes,
+                    None,
+                )
+                .expect("Error building transaction");
+                blockchain
+                    .send_transaction(&transaction)
+                    .expect("Error sending transaction");
+
+                println!("Transaction 0x{} was sent", hex::encode(transaction.hash()));
+                mine_transactions(&mut blockchain, address_bytes, &[transaction.hash()]);
+                println!("Block mined");
+            }
+        }
+        Commands::Transaction { hash } => {}
+        Commands::BlockId { height } => {
+            if let Some(blockchain) = blockchain {
+                let main_chain = blockchain.get_main_chain();
+
+                let block = main_chain
+                    .find_by_height(&U256::from(*height))
+                    .expect("Unable to find block")
+                    .expect("Unable to find block");
+
+                println!("Hash: 0x{}", hex::encode(block.hash().unwrap()));
+                println!("Basic info: {:?}", block.get_info());
+                println!(
+                    "Transactions: {:#?}",
+                    block.transactions().map(|trxs| trxs
+                        .iter()
+                        .map(|hash| hex::encode(hash))
+                        .collect::<Vec<_>>())
                 );
             }
         }
